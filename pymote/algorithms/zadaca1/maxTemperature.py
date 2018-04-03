@@ -1,6 +1,7 @@
 from pymote.algorithm import NodeAlgorithm
 from pymote.message import Message
-from pymote.sensor import TemperatureSensor, NeighborsSensor
+from pymote.sensor import NeighborsSensor
+from pymote.algorithms.zadaca1.tempSensor import TemperatureSensor
 
 '''
 T(problem)
