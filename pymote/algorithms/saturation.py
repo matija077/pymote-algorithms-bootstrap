@@ -56,12 +56,8 @@ class saturacija(NodeAlgorithm):
                 node.send(Message(header="M", data = prepared_data,
                 destination=node.memory['neighbors']))
                 node.status = 'PROCESSING'
-                #debug
-                print 'saturation_avaiable_1' + str(node.memory[self.nofNKey])
             else:
                 node.status = 'ACTIVE'
-                #debug
-                print 'saturation_available_multiple' + str(node.memory[self.nofNKey])
 
     def active(self, node, message):
         if message.header=="M":
@@ -72,8 +68,6 @@ class saturacija(NodeAlgorithm):
                 '''#prepared_data = ""
                 #self.prepare_message(prepared_data)
                 prepared_data = "Saturation"'''
-                #debug
-                print 'saturation' + str(node.memory[self.nofNKey])
                 prepared_data = self.prepare_message(node)
                 node.send(Message(header="M", data = prepared_data,
                 destination=node.memory["neighbors"]))
@@ -92,8 +86,7 @@ class saturacija(NodeAlgorithm):
         pass
 
     def prepare_message(self, prepared_data):
-        #debug
-        print 'saturation_prepare_message'
+        pass
         #prepared_data = "Saturation"
 
     def process_message(self,node,message):

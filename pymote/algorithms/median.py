@@ -8,6 +8,10 @@ class Median(saturacija):
     'constantNeighborsKey': 'constantNeighbors'}
 
     def initialize(self, node):
+        '''
+            every node needs to know number of neighbors in the network and the sum of
+            all neighbor child nodes and their children
+        '''
         node.memory[self.nofNKey] = {}
         node.memory[self.constantNeighborsKey] = node.compositeSensor.read()['Neighbors']
         for neighbor in node.memory[self.neighborsKey]:
@@ -26,18 +30,7 @@ class Median(saturacija):
             else:
                 node.status = 'NON_MEDIAN'
 
-    def non_median(self, node, message):
-        pass
-
-    def median(self, node, message):
-        pass
-
-    def saturated_median(self, node, message):
-        pass
-
     def prepare_message(self, node):
-        #debug
-        print 'median' + str(node.memory[self.nofNKey])
         return int(sum(node.memory[self.nofNKey].values())) + 1
 
     def process_message(self, node, message):
@@ -45,6 +38,9 @@ class Median(saturacija):
         pass
 
     def resolve(self, node):
+        '''
+            saturation nodes: calculate number of nodes in the network
+        '''
         node.memory[self.nKey] = sum(node.memory[self.nofNKey].values()) + 1
         #destination_list = list(set(node.memory[self.constantNeighborsKey]) -
         #set(node.memory[self.neighborsKey]))
@@ -56,6 +52,16 @@ class Median(saturacija):
             node.status = 'SATURATED'
 
     def determine_self_median(self, node):
+        '''
+            Lemma 2.6.7 Entity x is a median if and only if G[y,x]>=0 for all neighbors y.
+            Lemma 2.6.6 G[x,y]=g[T,x]−g[T,y], where g[T,x]=sum(d(x,y)) and g[T,y]=sum(d,(y,x))
+                Also G[y,x]= n -2*numberOfNodes(sub_tree(y-x)), where (y-x) means sub_tree(y)
+                without bridge(y,x)
+            Lemma 2.6.8 If x is not the median, there exists a unique neighbor y such that
+                G[y,x]<0; such a neighbor lies in the path from x to the median.
+                This was not used in this version of algorithm. We are using Flood(net)
+.
+        '''
         #debug
         '''node.memory['test'] = [-1]
         for neighbor in node.memory[self.nofNKey]:
@@ -69,6 +75,14 @@ class Median(saturacija):
     def calculate_G(self, n, numberOfNeighbors):
         return n - 2*numberOfNeighbors
 
+    def non_median(self, node, message):
+        pass
+
+    def median(self, node, message):
+        pass
+
+    def saturated_median(self, node, message):
+        pass
 
 
     STATUS = {
