@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from pymote.algorithm import Message
 from pymote.algorithms.saturation import saturacija
 from pymote.algorithm import NodeAlgorithm

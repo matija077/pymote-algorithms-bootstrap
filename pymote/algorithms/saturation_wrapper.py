@@ -29,6 +29,7 @@ if not os.path.exists(directory):
     except OSError as e:
         print e
 try:
+    pass
     #write_pickle(net,directory +  "/lista4_median.txt")
     write_pickle(net, directory + "/test_median_4.txt")
     #write_pickle(net, directory + "/test_saturation_1.txt")
