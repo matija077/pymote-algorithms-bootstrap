@@ -2,15 +2,20 @@
 #12:45
 from pymote.algorithm import NodeAlgorithm
 from pymote.message import Message
+from pymote import Node
 from random import random
+import collections
+from sys import maxint
 
 class MegaMerger(NodeAlgorithm):
     required_params = ()
     default_params = {'neighborsKey': 'Neighbors', 'treeKey': 'TreeNeighbors', 'parentKey' : 'Parent', 'weightKey': 'Weight',
-    'levelKey': 'Level', 'nameKey': 'Name', 'debugKey': 'DEBUG' , 'linkStatusKey':'LinkStatus'}
+    'levelKey': 'Level', 'nameKey': 'Name', 'debugKey': 'DEBUG' , 'linkStatusKey':'LinkStatus', 'nodeEdgeKey': 'MinimumEdgeNode',
+    'reportCounterKey': 'ReportCounter', 'numberOfInternalNodesKey': 'NumberOfInternalNodes'}
 
     def initializer(self):
         ini_nodes = []
+        max_node = Node()
         for node in self.network.nodes():
             node.memory[self.neighborsKey] = node.compositeSensor.read()['Neighbors']
            #node.memory[self.treeKey] = list(node.memory[self.neighborsKey])
@@ -21,18 +26,61 @@ class MegaMerger(NodeAlgorithm):
                 ini_nodes.append(node)'''
 
         # just for testing purposes
-        node = self.network.nodes()[0]
-        node.memory[self.levelKey] = 1
+        '''node = self.network.nodes()[0]
+        node.memory[self.levelKey] = 3
         node2 = self.network.nodes()[1]
         node2.memory[self.levelKey] = 1
-        node2.memory[self.parentKey] = node
-        node2.memory[self.nameKey] = node.memory[self.nameKey]
+        node2.memory[self.numberOfInternalNodesKey] = 1
         node4 = self.network.nodes()[3]
-        node4.memory[self.levelKey] = 2
+        node4.memory[self.levelKey] = 1
+        node4.memory[self.parentKey] = node2
+        node4.memory[self.nameKey] = node2.memory[self.nameKey]
+        node4.memory[self.numberOfInternalNodesKey] = 1
+        node4.memory[self.linkStatusKey][node2] = 'INTERNAL'
+        node2.memory[self.linkStatusKey][node4] = 'INTERNAL'
+        node4.status = 'PROCESSING'''
+        node = self.network.nodes()[0]
+        node.memory[self.levelKey] = 4
+        node.memory[self.numberOfInternalNodesKey] = 3
+        #for (k,v in node.memory[self.linkStatusKey])
+        node2 = self.network.nodes()[1]
+        node2.memory[self.levelKey] = 4
+        node2.memory[self.numberOfInternalNodesKey] = 1
+        node6 = self.network.nodes()[5]
+        node6.memory[self.levelKey] = 4
+        node6.memory[self.numberOfInternalNodesKey] = 2
+        node4 = self.network.nodes()[3]
+        node4.memory[self.levelKey] = 4
+        node4.memory[self.numberOfInternalNodesKey] = 1
+        node2.memory[self.parentKey] = node
+        node6.memory[self.parentKey] = node4
+        node.memory[self.parentKey] = node6
+        node2.memory[self.nameKey] = node4.memory[self.nameKey]
+        node6.memory[self.nameKey] = node4.memory[self.nameKey]
+        node.memory[self.nameKey] = node4.memory[self.nameKey]
+        node.memory[self.linkStatusKey][node2] = 'INTERNAL'
+        node.memory[self.linkStatusKey][node6] = 'INTERNAL'
+        node2.memory[self.linkStatusKey][node] = 'INETRNAL'
+        node6.memory[self.linkStatusKey][node] = 'INTERNAL'
+        node6.memory[self.linkStatusKey][node4] = 'INTERNAL'
+        node4.memory[self.linkStatusKey][node6] = 'INTERNAL'
+        node3 = self.network.nodes()[2]
+        node3.memory[self.levelKey] = 4
+        node7 = self.network.nodes()[6]
+        node7.memory[self.levelKey] = 6
+        node3.memory[self.nameKey] = node4.memory[self.nameKey]
+        node3.memory[self.linkStatusKey][node] = 'INTERNAL'
+        node.memory[self.linkStatusKey][node3] = 'INTERNAL'
+        node3.memory[self.parentKey] = node
+        node.memory[self.reportCounterKey] = 1
+        node2.status = 'PROCESSING'
+        node6.status = 'PROCESSING'
+        node4.status = 'PROCESSING'
+        node.status = 'PROCESSING'
 
         # starting node has lover lvl for absorpton to work
         
-        ini_nodes.append(self.network.nodes()[1])
+        ini_nodes.append(self.network.nodes()[2])
         
         for ini_node in ini_nodes:
             self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI,destination=ini_node))  # to je spontani impuls
@@ -46,19 +94,24 @@ class MegaMerger(NodeAlgorithm):
 
         #inicijatori
         if message.header == NodeAlgorithm.INI: #Spontaneously
-            prepared_data = self.prepare_message_data_concatenate(node)
+            # koristimo za test absorptiona
+            #prepared_data = self.prepare_message_data_concatenate(node)
             #for testing send Let us merge to the first neighbor.
-            node.send(Message(header='Let Us Merge', data=prepared_data, destination=node.memory[self.neighborsKey][0]))
-            node.send(Message(header='Let Us Merge', data=prepared_data, destination=node.memory[self.neighborsKey][1])) 
+            #node.send(Message(header='Let Us Merge', data=0, destination=node.memory[self.neighborsKey][0]))
+            #node.send(Message(header='Let Us Merge', data=0, destination=node.memory[self.neighborsKey][1])) 
             ## Iskljucivo inicijatori, bilo jedan ili svi poslat ce svom prvom i drugm susjedu Let Us Merge
-            node.status = 'PROCESSING'
+            self.send_Outside(node)
+
+        if message.header=='Outside?':
+            self.check_Outside_header(node, message)
 
         # ja ne kuzim kako rade ovi statusi stvarno
         if message.header=="Let Us Merge":
-            # izradi novu funkciju!
-            self.process_message_check_levels(node,message)
+            #self.process_message_check_levels(node,message)
             #self.resolve(node, message)
-            node.status = 'PROCESSING'
+            pass
+
+        node.status = 'PROCESSING'
 
         '''node.send(Message(header='Activate', data='Activate'))
         if len(node.memory[self.neighborsKey])==1 : #ako je čvor list
@@ -94,67 +147,129 @@ class MegaMerger(NodeAlgorithm):
         pass
 
     def processing(self, node, message):
-        if message.header=="Let Us Merge":
-            # izradi novu funkciju!
-            self.process_message_check_levels(node,message)
-            #self.resolve(node, message)
-            
-        ## or umjesto || ?
+        # valjda ovo rjesava donji TODO
+        if message.header=='Outside?':
+            self.check_Outside_header(node, message)
+
+        #TODO add Outside? for other nodes, not just INI_NODES
+        if message.header=="Let_us_merge":
+            # ako je poruka iz istog grada salji dalje, ako nije onda je to mergeEdge
+            if node.memory[self.linkStatusKey][message.source] == 'INTERNAL':
+                node.send(Message(header='Let_us_merge', data=0, destination=node.memory[self.nodeEdgeKey].keys()[0]))
+            else:
+                self.process_message_check_levels(node,message)
+
         if message.header=="absorption+orientation_of_roads" or message.header=="absorption":
-            
-            node.memory[self.nameKey] = message.data[self.nameKey]
-            node.memory[self.levelKey] = message.data[self.levelKey]
-            #dal ce mozda prema internal /external linku mocu zakljuciti umjesto param begin?
+            self.change_name_level(node, message)
             self.absorption(node, message)
             if message.header=="absorption+orientation_of_roads":
                 #REDOSLJED FUNKCIJA MORA BITI OVAKAV. Prvo posaljemo parentu poruku, onda maknemo parenta.
                 self.absorption(node, message, False, True)
                 node.memory[self.parentKey] = message.source
-            
+
+        #TODO or internal external suspension
+        if message.header=="Internal":
+            self.change_link_status_key_internal(node, message.source)
+        elif message.header=="External":
+            self.change_link_status_key_external(node, message.source)
+            if node.memory[self.parentKey]!=None:
+                node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
+            else:
+                #when merging egde is also downtown - WRONG, he should be sending let us merge
+                node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
+                pass
+
+        if message.header=="Report":
+            node.memory[self.reportCounterKey] += 1
+            #node.memory[self.nodeEdgeKey] = self.min_weight_two_nods(node.memory[self.nodeEdgeKey], message.source, node)
+            self.min_weight_two_nods(node.memory[self.nodeEdgeKey], message.source, node)
+            # -1 is for parent node, because root doesn't have a prent we will add > to if
+            if (node.memory[self.reportCounterKey]>=node.memory[self.numberOfInternalNodesKey]-1):
+                if node.memory[self.parentKey]==None:
+                    #TODO END if given weights are both maxint for root
+                    if (node.memory[self.nodeEdgeKey].values()[0][0] == maxint and 
+                        node.memory[self.nodeEdgeKey.values()[0][1]] == maxint):
+                            pass
+                    node.send(Message(header='Let_us_merge', data=0, destination=node.memory[self.nodeEdgeKey].keys()[0]))
+                else:
+                    node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
+                node.memory[self.reportCounterKey] = 0
+
     def saturated(self, node):
         pass
 
     def prepare_message(self,node):
         pass
 
-    def prepare_message_data_concatenate(self, node):
+    '''def prepare_message_data_concatenate(self, node):
       
         args = {self.nameKey: node.memory[self.nameKey], self.levelKey: node.memory[self.levelKey]}
         #data = ",".join(args)
-        return args
+        return args'''
 
     def process_message(self, node, message):
         pass
 
+    def send_Outside(self, node):
+        #TODO everytime node receive Internal, send message again somehow
+        node.memory[self.nodeEdgeKey] = self.min_weight(node)
+        node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
+
+        #node.memory[self.nodeEdgeKey] = {node.memory[self.weightKey].keys()[0]: node.memory[self.weightKey].values()[0]}
+        #node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
+
+#   it's a duplicate in 2 states, available and processing
+    def check_Outside_header(self, node, message):
+        if message.source.memory[self.nameKey]==node.memory[self.nameKey]:
+                node.send(Message(header='Internal', data=0, destination=message.source))
+                self.change_link_status_key_internal(node, message.source)
+        elif node.memory[self.levelKey] >= message.source.memory[self.levelKey]:
+            node.send(Message(header='External', data=0, destination=message.source))
+            self.change_link_status_key_external(node, message.source)
+        else:
+            # TODO internal external suspension, this suspension is never gona be "unsuspended"
+            #   need to check some things here, it's an absorption, so things start aggain, it's not like
+            #   in other uspension where we wait.
+            pass
+
+#   name and level changes are in a function because they will be reused and we need to 
+#   check queue whenever level changes
+    def change_name_level(self, node, message):
+        node.memory[self.nameKey] = message.source.memory[self.nameKey]
+        node.memory[self.levelKey] = message.source.memory[self.levelKey]
+        self.check_queue()
+
+#   TODO
+    def check_queue(self):
+        pass
+
+#   equal = frendly merger or suspenson, smaller = absorption, bigger = never happens
     def process_message_check_levels(self, node, message):
         if message.source.memory[self.levelKey] < node.memory[self.levelKey]:
             self.absorption(node, message, True)
 
+    def change_link_status_key_internal(self, node, message_source):
+        node.memory[self.linkStatusKey][message_source] = "INTERNAL"
+        node.memory[self.numberOfInternalNodesKey] += 1
+    def change_link_status_key_external(self, node, message_source):
+        node.memory[self.linkStatusKey][message_source] = "EXTERNAL"
 
     def absorption(self, node, message, param_begining=False, orientation_of_roads=False):
-        #TODO prepare_message()
+        if node.memory[self.linkStatusKey][message.source]=='EXTERNAL':
+            self.change_link_status_key_internal(node, message.source)
         if param_begining==True:
-            prepared_data = self.prepare_message_data_concatenate(node)
-            node.send(Message(header="absorption+orientation_of_roads", data=prepared_data, destination=message.source))
+            node.send(Message(header="absorption+orientation_of_roads", data=0, destination=message.source))
         else:
-            prepared_data = message.data
-
             if orientation_of_roads==True:
                 if node.memory[self.parentKey]!=None:
-                    node.send(Message(header="absorption+orientation_of_roads", data=prepared_data, destination=node.memory[self.parentKey]))
+                    node.send(Message(header="absorption+orientation_of_roads", data=0, destination=node.memory[self.parentKey]))
                 else:
                     # DEBUG
                     node.memory[self.debugKey] = "Nemam parenta"
-                '''try:
-                    node.send(Message(header="absorption+orientation_of_roads", data=prepared_data, destination=node.memory[self.parentKey]))
-                except Exception as e:
-                    # DeBUGGER
-                    #node.memory[self.debugKey] = e
-                    pass'''
             else:
-                #mising internal, exernal
-                destination_nodes = list(filter(lambda neighbor:  neighbor != node.memory[self.neighborsKey] and neighbor != message.source, node.memory[self.neighborsKey])) 
-                node.send(Message(header="absorption", data=prepared_data, destination=destination_nodes))
+                #TODO mising internal, exernal
+                destination_nodes = list(filter(lambda neighbor:  neighbor != node.memory[self.parentKey] and neighbor != message.source, node.memory[self.neighborsKey])) 
+                node.send(Message(header="absorption", data=0, destination=destination_nodes))
 
     def initialize(self, node):
         node.memory[self.weightKey] = {}
@@ -162,6 +277,10 @@ class MegaMerger(NodeAlgorithm):
         node.memory[self.levelKey] = 0
         node.memory[self.nameKey] = node.id
         node.memory[self.parentKey] = None
+        node.memory[self.reportCounterKey] = 0
+        node.memory[self.numberOfInternalNodesKey] = 0
+        # sam sebe dodamo kao defaultni minimumEdgeNode sa max weightom.
+        node.memory[self.nodeEdgeKey] = {node: [maxint, maxint]}
         for neighbor in node.memory[self.neighborsKey]:
             node.memory[self.weightKey][neighbor] = [min(node.id, neighbor.id),
             max(node.id, neighbor.id)]
@@ -170,10 +289,72 @@ class MegaMerger(NodeAlgorithm):
             node.memory[self.weightKey][neighbor] = [min(node.id, neighbor.id),max(node.id, neighbor.id)]
             node.memory[self.linkStatusKey][neighbor] = "UNUSED"
 
-    def resolve(self,node, message):
-        node.status='SATURATED'
-        pass
 
+    def min_weight(self,node):
+        #TODO if no unused edge found, return infinitive weight
+        #we are considering only unused edges.
+        temp_unused_edges = dict()
+        #temp_unused_edges = [(k, v) if v2='UNUSED' for (k,v), (k, v2) in zip(node.memory[self.weightKey].items(), node.memory[self.linkStatusKey].items())]
+        for k,v in node.memory[self.weightKey].iteritems():
+            if node.memory[self.linkStatusKey][k] == 'UNUSED':
+                temp_unused_edges[k] = v
+        orderedDict = collections.OrderedDict(sorted(temp_unused_edges.iteritems(), key=lambda (k,v):v[0]))            
+        min_1= orderedDict.values()[0][0]
+        print(min_1)        
+        uzi_izbor={}
+
+#        print("sortirano 1 ")               
+        for o in orderedDict:
+            #print orderedDict[o]
+            if orderedDict[o][0] == min_1:
+                uzi_izbor.update({o:orderedDict[o]})
+    
+        orderedDict = collections.OrderedDict(sorted(uzi_izbor.iteritems(), key=lambda (k,v):v[1]))       
+#        print("sortirano 2")
+#        for o in orderedDict:
+#            print orderedDict[o]
+        #iz nekog razloga nece vratiti uredeni par {key, value} pa sam ovako napravio
+        mergeEdge = dict()
+        mergeEdge[orderedDict.keys()[0]] = orderedDict.values()[0]
+        return mergeEdge
+
+    '''
+        usporedujemo weightove cvora koji na kojemu se izvrsava i onog koji je poslao poruku
+        Ako je weight cvora manji onda ostavljamo kako je bilo, ako nije onda mijenjamo weigthove
+        u trenutnom cvoru. S obzirom da zelimo imati putanju poruka kako ne bi morali raditi broadcast
+        od roota prema mergeEdgu, memory    oramo promijeniti nas dicitonary koji je bio <id cvora koji je poslao poruku 
+        onom koji je poslao poruku trenutnom: mergeEdge Weight> u {id cvora koji je poslao poruku: mergeEgde Weight}.
+        Mijenjamo samo vlasnika mergeEdge Weighta kako bi znali put od roota prema istome. Weight ostaje isti.  
+    '''
+    def min_weight_two_nods(self, node_id_weight_a, message_source, node):
+        # node_id_* je dictionary <id  cvora koji je poslao poruku: weight>
+        # NIKAD NE ZABORAVI KREIRAT NOVU VARIAJABlU SA KONTSTRUKTOROM ISTE AKO CES JOJ DODIJELTII VEC
+        # POTOSTOJECE VRIJEDNOSTI ....
+        node_id_weight_b = dict(message_source.memory[self.nodeEdgeKey])
+        weight_node_a = node_id_weight_a.values()
+        weight_node_b = node_id_weight_b.values()
+        node.memory[self.debugKey] = [node_id_weight_a, node_id_weight_b]
+
+        if weight_node_a[0]<weight_node_b[0]:
+            node.memory[self.nodeEdgeKey] = node_id_weight_a
+            return
+        elif weight_node_a>weight_node_b[0]:
+            temp = dict()
+            temp[message_source] =  node_id_weight_b.pop(node_id_weight_b.keys()[0])
+            #node_id_weight_b[message_source] = node_id_weight_b.pop(node_id_weight_b.keys()[0])
+            #return node_id_weight_b
+            node.memory[self.nodeEdgeKey] = temp
+            return
+        elif weight_node_a[1]<weight_node_b[1]:
+            node.memory[self.nodeEdgeKey] = node_id_weight_a
+            return
+        else:
+            temp = dict()
+            temp[message_sourc] = node_id_weight_b.pop(node_id_weight_b.keys()[0])
+            #node_id_weight_b[message_source] = node_id_weight_b.pop(node_id_weight_b.keys()[0])
+            #return node_id_weight_b
+            node.memory[self.nodeEdgeKey] = temp
+            return
 
     STATUS = {
               'AVAILABLE': available,
