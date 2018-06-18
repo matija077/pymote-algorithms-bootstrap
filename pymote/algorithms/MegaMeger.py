@@ -166,6 +166,8 @@ class MegaMerger(NodeAlgorithm):
                 #REDOSLJED FUNKCIJA MORA BITI OVAKAV. Prvo posaljemo parentu poruku, onda maknemo parenta.
                 self.absorption(node, message, False, True)
                 node.memory[self.parentKey] = message.source
+#           TEST - start next cycle
+            self.send_Outside(node)
 
         #TODO or internal external suspension
         if message.header=="Internal":
@@ -211,9 +213,12 @@ class MegaMerger(NodeAlgorithm):
         pass
 
     def send_Outside(self, node):
-        #TODO everytime node receive Internal, send message again somehow
+        #TODO everytime node receive Internal, send message again somehow TEST
         node.memory[self.nodeEdgeKey] = self.min_weight(node)
-        node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
+        node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
+        # solution for infinitive is {self node: [maxint, maxint]}. we don't want node to send message to itself
+        if node.id != node.memory[self.nodeEdgeKey].keys()[0].id:
+            node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
 
         #node.memory[self.nodeEdgeKey] = {node.memory[self.weightKey].keys()[0]: node.memory[self.weightKey].values()[0]}
         #node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
@@ -228,8 +233,8 @@ class MegaMerger(NodeAlgorithm):
             self.change_link_status_key_external(node, message.source)
         else:
             # TODO internal external suspension, this suspension is never gona be "unsuspended"
-            #   need to check some things here, it's an absorption, so things start aggain, it's not like
-            #   in other uspension where we wait.
+            #   need to check some things here, it's an absorption, so things start again, it's not like
+            #   in other suspension where we wait.
             pass
 
 #   name and level changes are in a function because they will be reused and we need to 
@@ -254,11 +259,15 @@ class MegaMerger(NodeAlgorithm):
     def change_link_status_key_external(self, node, message_source):
         node.memory[self.linkStatusKey][message_source] = "EXTERNAL"
 
+#   param begining - pocetnio slanje
+#   orientation_of_rodas - Ako saljemo parentu, trebamo promijeniti orientaciju do roota. drugi cvorovi koji nisu na putu
+#       zbog uvjeta slanja poruka nece slati poruke parentima, osim ako vujet niej True.
     def absorption(self, node, message, param_begining=False, orientation_of_roads=False):
         if node.memory[self.linkStatusKey][message.source]=='EXTERNAL':
             self.change_link_status_key_internal(node, message.source)
         if param_begining==True:
             node.send(Message(header="absorption+orientation_of_roads", data=0, destination=message.source))
+            self.send_Outside(node)
         else:
             if orientation_of_roads==True:
                 if node.memory[self.parentKey]!=None:
@@ -267,8 +276,8 @@ class MegaMerger(NodeAlgorithm):
                     # DEBUG
                     node.memory[self.debugKey] = "Nemam parenta"
             else:
-                #TODO mising internal, exernal
-                destination_nodes = list(filter(lambda neighbor:  neighbor != node.memory[self.parentKey] and neighbor != message.source, node.memory[self.neighborsKey])) 
+                destination_nodes = list(filter(lambda neighbor:  neighbor != node.memory[self.parentKey] and neighbor != message.source
+                    and node.memory[self.linkStatusKey][neighbor] == 'INTERNAL', node.memory[self.neighborsKey])) 
                 node.send(Message(header="absorption", data=0, destination=destination_nodes))
 
     def initialize(self, node):
@@ -291,13 +300,17 @@ class MegaMerger(NodeAlgorithm):
 
 
     def min_weight(self,node):
-        #TODO if no unused edge found, return infinitive weight
+        #TODO if no unused edge found, return infinitive weight TEST
         #we are considering only unused edges.
         temp_unused_edges = dict()
         #temp_unused_edges = [(k, v) if v2='UNUSED' for (k,v), (k, v2) in zip(node.memory[self.weightKey].items(), node.memory[self.linkStatusKey].items())]
         for k,v in node.memory[self.weightKey].iteritems():
             if node.memory[self.linkStatusKey][k] == 'UNUSED':
                 temp_unused_edges[k] = v
+#       TEST - solution for TODO 
+        if not temp_unused_edges:
+            infinitiveEdge = {node: [maxint,maxint]}
+            return infinitiveEdge
         orderedDict = collections.OrderedDict(sorted(temp_unused_edges.iteritems(), key=lambda (k,v):v[0]))            
         min_1= orderedDict.values()[0][0]
         print(min_1)        
