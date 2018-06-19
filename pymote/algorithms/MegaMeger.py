@@ -28,8 +28,8 @@ class MegaMerger(NodeAlgorithm):
                 ini_nodes.append(node)'''
 
         # just for testing purposes
-        #prepare_absorption(self)
-        prepare_friendly_merger(self)
+        prepare_absorption(self)
+        #prepare_friendly_merger(self)
 
 
 
@@ -154,6 +154,14 @@ class MegaMerger(NodeAlgorithm):
 #           TEST - start next cycle
             self.send_Outside(node)
 
+        if message.header=="friendly_merger+orientation_of_roads" or message.header=="friendly_merger":
+            self.change_name_level(node, message)
+            self.friendly_merger(node, message)
+            if message.header=="friendly_merger+orientation_of_roads":
+                self.friendly_merger(node, message, False, True)
+                node.memory[self.parentKey] = message.source
+            self.send_Outside(node)
+
 
         #TODO or internal external suspension
         if message.header=="Internal":
@@ -262,7 +270,7 @@ class MegaMerger(NodeAlgorithm):
             self.absorption(node, message, True)
         elif message.source.memory[self.levelKey] == node.memory[self.levelKey] or special_case_boolean == True:
             if node.memory[self.Let_us_merge_FriendlyMergerKey] == True:
-                self.friendly_merger(node, message.source, True)
+                self.friendly_merger(node, message, True)
             else:
                 self.change_let_us_merge_FriendlyMergerKey(node, True)
                 node.memory[self.friendlyMergerMessagekey] = message
@@ -302,8 +310,9 @@ class MegaMerger(NodeAlgorithm):
 
 #   compute new downtown (smaller ID) from two nodes independently one form antoher. add new name and increase lvl by one.
 #   we need to change the orientation of roads depending on which node is the new downtown, also change internal nodes
-    def friendly_merger(self, node, b, param_begining=False, orientation_of_roads=False):
+    def friendly_merger(self, node, message, param_begining=False, orientation_of_roads=False):
         if param_begining == True:
+            b = message.source
             new_downtown = self.min_id_two_nodes(node, b)
             self.change_name_level(node, None, new_downtown.id, 'friendly_merger')
             self.change_link_status_key_internal(node, b)
@@ -313,6 +322,19 @@ class MegaMerger(NodeAlgorithm):
 #           because we change parent, we need to send the message first.
             if new_downtown.id != node.id:
                 node.memory[self.parentKey] = b
+            else:
+                node.memory[self.parentKey] = None
+            self.send_Outside(node)
+        else:
+            if orientation_of_roads == True:
+                if node.memory[self.parentKey] != None:
+                    node.send(Message(header="friendly_merger+orientation_of_roads", data=0, destination=node.memory[self.parentKey]))
+                else:
+                    pass
+            else:
+                destination_nodes = list(filter(lambda neighbor:  neighbor != node.memory[self.parentKey] and neighbor != message.source
+                    and node.memory[self.linkStatusKey][neighbor] == 'INTERNAL', node.memory[self.neighborsKey])) 
+                node.send(Message(header="friendly_merger", data=0, destination=destination_nodes))
 
 
     def initialize(self, node):
