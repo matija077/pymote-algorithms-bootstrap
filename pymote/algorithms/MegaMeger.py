@@ -13,7 +13,7 @@ class MegaMerger(NodeAlgorithm):
     default_params = {'neighborsKey': 'Neighbors', 'treeKey': 'TreeNeighbors', 'parentKey' : 'Parent', 'weightKey': 'Weight',
     'levelKey': 'Level', 'nameKey': 'Name', 'debugKey': 'DEBUG' , 'linkStatusKey':'LinkStatus', 'nodeEdgeKey': 'MinimumEdgeNode',
     'reportCounterKey': 'ReportCounter', 'numberOfInternalNodesKey': 'NumberOfInternalNodes', 'Let_us_merge_FriendlyMergerKey': 'Let_us_merge',
-    'friendlyMergerMessagekey': 'FriendlyMergerMessage', 'friendlyMergerCityNameKey': 'FriendlyMergerCityName'}
+    'friendlyMergerMessagekey': 'FriendlyMergerMessage'}
 
     def initializer(self):
         ini_nodes = []
@@ -253,7 +253,7 @@ class MegaMerger(NodeAlgorithm):
 
 #   equal = frendly merger or suspenson, smaller = absorption, bigger = never happens
 #   special_case handler is here. 
-    def process_message_check_levels(self, node, message, special_case_level_name = None):
+    def process_message_check_levels(self, node, message):
         special_case_boolean = False
         if message.data != 0:
             if message.data['Level'] == node.memory[self.levelKey]:
@@ -325,7 +325,6 @@ class MegaMerger(NodeAlgorithm):
         node.memory[self.numberOfInternalNodesKey] = 0
         node.memory[self.Let_us_merge_FriendlyMergerKey] = False
         node.memory[self.friendlyMergerMessagekey] = False
-        node.memory[self.friendlyMergerCityNameKey] = {'Level': None, 'Name': None}
         # sam sebe dodamo kao defaultni minimumEdgeNode sa max weightom.
         node.memory[self.nodeEdgeKey] = {node: [maxint, maxint]}
         for neighbor in node.memory[self.neighborsKey]:
