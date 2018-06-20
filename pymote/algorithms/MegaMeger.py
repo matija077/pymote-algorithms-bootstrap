@@ -13,7 +13,7 @@ class MegaMerger(NodeAlgorithm):
     default_params = {'neighborsKey': 'Neighbors', 'treeKey': 'TreeNeighbors', 'parentKey' : 'Parent', 'weightKey': 'Weight',
     'levelKey': 'Level', 'nameKey': 'Name', 'debugKey': 'DEBUG' , 'linkStatusKey':'LinkStatus', 'nodeEdgeKey': 'MinimumEdgeNode',
     'reportCounterKey': 'ReportCounter', 'numberOfInternalNodesKey': 'NumberOfInternalNodes', 'Let_us_merge_FriendlyMergerKey': 'Let_us_merge',
-    'friendlyMergerMessagekey': 'FriendlyMergerMessage'}
+    'friendlyMergerMessagekey': 'FriendlyMergerMessage', 'let_us_merge_queue_key': 'Let_us_merge_queue'}
 
     def initializer(self):
         ini_nodes = []
@@ -29,7 +29,7 @@ class MegaMerger(NodeAlgorithm):
 
         # just for testing purposes
         #prepare_absorption(self)
-        prepare_friendly_merger(self)
+        #prepare_friendly_merger(self)
 
 
 
@@ -41,7 +41,7 @@ class MegaMerger(NodeAlgorithm):
         #ini_nodes.append(self.network.nodes()[4])
         ini_nodes.append(self.network.nodes()[2])
         #ini_nodes.append(self.network.nodes()[6])
-        #ini_nodes.append(self.network.nodes()[5])
+        ini_nodes.append(self.network.nodes()[5])
 
 
 
@@ -204,6 +204,10 @@ class MegaMerger(NodeAlgorithm):
     def send_Outside(self, node, message = None):
         #TODO everytime node receive Internal, send message again somehow TEST
         node.memory[self.nodeEdgeKey] = self.min_weight(node, message)
+#       if the choosen merge dge is the first one in queue pop it
+        if len(node.memory[self.let_us_merge_queue_key]) > 0:
+            if node.memory[self.nodeEdgeKey] == node.memory[self.let_us_merge_queue_key][0].source:
+                node.memory[self.let_us_merge_queue_key].popleft()
         #node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
         #node.memory[self.debugKey] = 'zakaj sam ja tu usao?'
         # solution for infinitive is {self node: [maxint, maxint]}. we don't want node to send message to itself, we want to report it
@@ -265,8 +269,6 @@ class MegaMerger(NodeAlgorithm):
             prepared_data = 0
         else:
             prepared_data = {'Level': node.memory[self.levelKey]}
-            
-
 
 #   name and level changes are in a function because they will be reused and we need to 
 #   check queue whenever level changes
@@ -275,10 +277,11 @@ class MegaMerger(NodeAlgorithm):
         if what_is_it == 'absorption':
             node.memory[self.nameKey] = message.source.memory[self.nameKey]
             node.memory[self.levelKey] = message.source.memory[self.levelKey]
-            self.check_queue()
         elif what_is_it == 'friendly_merger':
             node.memory[self.nameKey] = city_name
             node.memory[self.levelKey] += 1
+            if len(node.memory[self.let_us_merge_queue_key]) > 0 :
+                self.check_queue(node)
         self.reset(node)
 
 #   put here everything that needs to be reset after absorption or friendly merger happens
@@ -286,9 +289,11 @@ class MegaMerger(NodeAlgorithm):
     def reset(self, node):
         self.change_let_us_merge_FriendlyMergerKey(node, False)
 
-#   TODO
-    def check_queue(self):
-        pass
+#   TODO if lvl is greater then absorb th other city. Absorption calls send_Outside which calls min_weight which calls check_queue again
+#   so it will repeat itself. Also in min_weight there is a check for the same level.
+    def check_queue(self, node):
+        if node.memory[self.levelKey] > node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
+            self.absorption(node, node.memory[self.let_us_merge_queue_key].popleft(), True)
 
 
 #   equal = frendly merger or suspenson, smaller = absorption, bigger = never happens
@@ -309,9 +314,11 @@ class MegaMerger(NodeAlgorithm):
                 else:
                     self.change_let_us_merge_FriendlyMergerKey(node, True)
                     node.memory[self.friendlyMergerMessagekey] = message
-#           suspension
+#           suspension and put in queue
             else:
-                pass
+                node.memory[self.let_us_merge_queue_key].append(message)
+        else:
+            pass
 
     def change_link_status_key_internal(self, node, message_source):
         node.memory[self.debugKey] = 'akaj ja?'
@@ -391,6 +398,7 @@ class MegaMerger(NodeAlgorithm):
         node.memory[self.friendlyMergerMessagekey] = False
         # sam sebe dodamo kao defaultni minimumEdgeNode sa max weightom.
         node.memory[self.nodeEdgeKey] = {node: [maxint, maxint]}
+        node.memory[self.let_us_merge_queue_key] = collections.deque([])
         for neighbor in node.memory[self.neighborsKey]:
             node.memory[self.weightKey][neighbor] = [min(node.id, neighbor.id),
             max(node.id, neighbor.id)]
@@ -401,15 +409,23 @@ class MegaMerger(NodeAlgorithm):
 
 
     def min_weight(self,node, message):
+#       check queue
+        if len(node.memory[self.let_us_merge_queue_key]) > 0 :
+            self.check_queue(node)
         #TODO if no unused edge found, return infinitive weight TEST
         #we are considering only unused edges.
         temp_unused_external_edges = dict()
+        temp_node = None
 #       trick to add just changed extrnal edge to what it should be while in this method, an unused edge
         if message != None:
             node.memory[self.linkStatusKey][message.source] = 'UNUSED'
+#       if same levels in queue then include it for me
+        if len(node.memory[self.let_us_merge_queue_key]) > 1:
+            if node.memory[self.levelKey] == node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
+                temp_node = node.memory[self.let_us_merge_queue_key][0].source
         #temp_unused_edges = [(k, v) if v2='UNUSED' for (k,v), (k, v2) in zip(node.memory[self.weightKey].items(), node.memory[self.linkStatusKey].items())]
         for k,v in node.memory[self.weightKey].iteritems():
-            if node.memory[self.linkStatusKey][k] == 'UNUSED':
+            if node.memory[self.linkStatusKey][k] == 'UNUSED' or node.memory[self.linkStatusKey][k] == temp_node:
                 temp_unused_external_edges[k] = v
         if message != None:
             node.memory[self.linkStatusKey][message.source] = 'EXTERNAL'
