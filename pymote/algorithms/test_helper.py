@@ -75,6 +75,7 @@ def prepare_friendly_merger(self):
         #node7.memory[self.linkStatusKey][node3] = 'EXTERNAL'
         node3.memory[self.nameKey] = node4.memory[self.nameKey]
         node3.memory[self.linkStatusKey][node] = 'INTERNAL'
+        node3.memory[self.numberOfInternalNodesKey] = 1
         node.memory[self.linkStatusKey][node3] = 'INTERNAL'
         node3.memory[self.parentKey] = node
         node.memory[self.reportCounterKey] = 1
@@ -82,6 +83,11 @@ def prepare_friendly_merger(self):
         node6.status = 'PROCESSING'
         node4.status = 'PROCESSING'
         node.status = 'PROCESSING'
+        try_more(self)
+
+def try_more(self):
+        node5 = self.network.nodes()[4]
+        node5.memory[self.levelKey] = 7
 
 '''node = self.network.nodes()[0]
 node.memory[self.levelKey] = 3

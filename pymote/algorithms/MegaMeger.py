@@ -28,15 +28,23 @@ class MegaMerger(NodeAlgorithm):
                 ini_nodes.append(node)'''
 
         # just for testing purposes
-        prepare_absorption(self)
-        #prepare_friendly_merger(self)
+        #prepare_absorption(self)
+        prepare_friendly_merger(self)
 
 
 
         # starting node has lover lvl for absorpton to work
         
+        #ini_nodes.append(self.network.nodes()[7])
+        #ini_nodes.append(self.network.nodes()[0])
+        #ini_nodes.append(self.network.nodes()[1])
+        #ini_nodes.append(self.network.nodes()[4])
         ini_nodes.append(self.network.nodes()[2])
-        ini_nodes.append(self.network.nodes()[6])
+        #ini_nodes.append(self.network.nodes()[6])
+        #ini_nodes.append(self.network.nodes()[5])
+
+
+
         
         for ini_node in ini_nodes:
             self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI,destination=ini_node))  # to je spontani impuls
@@ -60,6 +68,7 @@ class MegaMerger(NodeAlgorithm):
 
         if message.header=='Outside?':
             self.check_Outside_header(node, message)
+            self.send_Outside(node, message)
 
         # ja ne kuzim kako rade ovi statusi stvarno
         if message.header=="Let Us Merge":
@@ -118,11 +127,8 @@ class MegaMerger(NodeAlgorithm):
 #               special case yeaaah. this sucks :( . Because node a will compute friendly merger, when b recieves Let_us_merge he we will 
 #               use a's data, a a je vec povecao lvl. Ili promijeniti svugdje nacin slanja ili samo za ovaj specificni slucaj. Potrebno je 
 #               imati i handler za ovaj slucaj.
-                if (node.memory[self.Let_us_merge_FriendlyMergerKey] == False):
-                    node.send(Message(header='Let_us_merge', data=0, destination=destination_node))
-                else:
-                    prepared_data = {'Level': node.memory[self.levelKey]}
-                    node.send(Message(header='Let_us_merge', data=prepared_data, destination=destination_node))
+                prepared_data = self.check_and_prepare_data(node)
+                node.send(Message(header='Let_us_merge', data=prepared_data, destination=destination_node))
             else:
                 self.process_message_check_levels(node,message)
 
@@ -131,17 +137,16 @@ class MegaMerger(NodeAlgorithm):
 #           TODO make this readable at least
 #           because friendly merger resets Let_us_merge... we are going to check for default value first.
             if node.memory[self.Let_us_merge_FriendlyMergerKey] == False:
-                if node.memory[self.linkStatusKey][message.source] == 'INTERNAL':
-                    if node.memory[self.linkStatusKey][node.memory[self.nodeEdgeKey].keys()[0]] == 'EXTERNAL':
-                        self.change_let_us_merge_FriendlyMergerKey(node, True)
+                if node.memory[self.nodeEdgeKey].keys()[0] in node.memory[self.linkStatusKey]:
+                    if node.memory[self.linkStatusKey][message.source] == 'INTERNAL':
+                        if node.memory[self.linkStatusKey][node.memory[self.nodeEdgeKey].keys()[0]] == 'EXTERNAL':
+                            self.change_let_us_merge_FriendlyMergerKey(node, True)
 
             else:
-                if node.memory[self.linkStatusKey][message.source] == 'INTERNAL':
+#               if node is the root we would double the level check
+                if node.memory[self.linkStatusKey][message.source] == 'INTERNAL' and node.memory[self.parentKey] != None:
+                    node.memory[self.debugKey] = 'pogodak'
                     self.process_message_check_levels(node, node.memory[self.friendlyMergerMessagekey])
-                '''if node.memory[self.linkStatusKey][message.source] == 'EXTERNAL':
-                    self.process_message_check_levels(node, message)
-                else:
-                    self.process_message_check_levels(node. node.memory[self.friendlyMergerMessagekey])'''
 
 
         if message.header=="absorption+orientation_of_roads" or message.header=="absorption":
@@ -179,17 +184,7 @@ class MegaMerger(NodeAlgorithm):
             node.memory[self.reportCounterKey] += 1
             #node.memory[self.nodeEdgeKey] = self.min_weight_two_nods(node.memory[self.nodeEdgeKey], message.source, node)
             self.min_weight_two_nods(node.memory[self.nodeEdgeKey], message.source, node)
-            # -1 is for parent node, because root doesn't have a prent we will add > to if
-            if (node.memory[self.reportCounterKey]>=node.memory[self.numberOfInternalNodesKey]-1):
-                if node.memory[self.parentKey]==None:
-                    #TODO END if given weights are both maxint for root
-                    if (node.memory[self.nodeEdgeKey].values()[0][0] == maxint and 
-                        node.memory[self.nodeEdgeKey.values()[0][1]] == maxint):
-                            pass
-                    node.send(Message(header='Let_us_merge', data=0, destination=node.memory[self.nodeEdgeKey].keys()[0]))
-                else:
-                    node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
-                node.memory[self.reportCounterKey] = 0
+            self.check_report(node)
 
     def saturated(self, node):
         pass
@@ -206,13 +201,25 @@ class MegaMerger(NodeAlgorithm):
     def process_message(self, node, message):
         pass
 
-    def send_Outside(self, node):
+    def send_Outside(self, node, message = None):
         #TODO everytime node receive Internal, send message again somehow TEST
-        node.memory[self.nodeEdgeKey] = self.min_weight(node)
-        node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
-        # solution for infinitive is {self node: [maxint, maxint]}. we don't want node to send message to itself
+        node.memory[self.nodeEdgeKey] = self.min_weight(node, message)
+        #node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
+        #node.memory[self.debugKey] = 'zakaj sam ja tu usao?'
+        # solution for infinitive is {self node: [maxint, maxint]}. we don't want node to send message to itself, we want to report it
+#       to parent as infinitive. Of course if no parent present otherwise it just sends to everyone
+#       if outside is the same edge as the one we just sent External to then we can skip this adn send Let_us_merge
+        if message != None:
+            if node.memory[self.nodeEdgeKey].keys()[0] == message.source:
+                node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
+                self.change_let_us_merge_FriendlyMergerKey(node, True)
+                return
         if node.id != node.memory[self.nodeEdgeKey].keys()[0].id:
             node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
+#       if node is the only member of the city we dont need reports.
+        elif self.check_if_children_exist(node):
+            self.check_report(node)
+            #node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
 
         #node.memory[self.nodeEdgeKey] = {node.memory[self.weightKey].keys()[0]: node.memory[self.weightKey].values()[0]}
         #node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
@@ -230,6 +237,36 @@ class MegaMerger(NodeAlgorithm):
             #   need to check some things here, it's an absorption, so things start again, it's not like
             #   in other suspension where we wait.
             pass
+
+#   duplicate in send_Outside and Report case in Processing. If it's the leaf node then check if we can start sending reports back.
+#   TODO check if 2 ifs below are not redundant
+    def check_report(self, node):
+        if (node.memory[self.reportCounterKey]>=node.memory[self.numberOfInternalNodesKey]-1) and (node.memory[self.parentKey] != None):
+                node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
+                node.memory[self.reportCounterKey] = 0
+        if node.memory[self.reportCounterKey]>=node.memory[self.numberOfInternalNodesKey] and node.memory[self.parentKey] == None:
+            #TODO END if given weights are both maxint for root
+            if (node.memory[self.nodeEdgeKey].values()[0][0] == maxint and 
+                node.memory[self.nodeEdgeKey.values()[0][1]] == maxint):
+                    pass
+            node.send(Message(header='Let_us_merge', data=0, destination=node.memory[self.nodeEdgeKey].keys()[0]))
+            node.memory[self.reportCounterKey] = 0
+
+    def check_if_children_exist(self, node):
+        counter = 0
+        counter = sum(value == 'INTERNAL' for value in node.memory[self.linkStatusKey])
+        if counter > 0:
+            return True
+        else:
+            return False
+
+    def check_and_prepare_data(self, node):
+        if (node.memory[self.Let_us_merge_FriendlyMergerKey] == False):
+            prepared_data = 0
+        else:
+            prepared_data = {'Level': node.memory[self.levelKey]}
+            
+
 
 #   name and level changes are in a function because they will be reused and we need to 
 #   check queue whenever level changes
@@ -253,11 +290,6 @@ class MegaMerger(NodeAlgorithm):
     def check_queue(self):
         pass
 
-    def check_let_us_merge_friendlyMerger_messageSource(node, message):
-        pass
-        if node.memory[self.linkStatusKey][message_source] == 'INTERNAL':
-            pass
-
 
 #   equal = frendly merger or suspenson, smaller = absorption, bigger = never happens
 #   special_case handler is here. 
@@ -269,13 +301,20 @@ class MegaMerger(NodeAlgorithm):
         if message.source.memory[self.levelKey] < node.memory[self.levelKey]:
             self.absorption(node, message, True)
         elif message.source.memory[self.levelKey] == node.memory[self.levelKey] or special_case_boolean == True:
-            if node.memory[self.Let_us_merge_FriendlyMergerKey] == True:
-                self.friendly_merger(node, message, True)
+            if node.memory[self.nodeEdgeKey].keys()[0].id == message.source.id or node.memory[self.nodeEdgeKey].keys()[0].id == node.id:
+                node.memory[self.debugKey] = "ovdje?"
+    #           if friendly merger and the node is the root we need to procesde with friendly merger.
+                if node.memory[self.Let_us_merge_FriendlyMergerKey] == True or node.memory[self.parentKey] == None:
+                    self.friendly_merger(node, message, True)
+                else:
+                    self.change_let_us_merge_FriendlyMergerKey(node, True)
+                    node.memory[self.friendlyMergerMessagekey] = message
+#           suspension
             else:
-                self.change_let_us_merge_FriendlyMergerKey(node, True)
-                node.memory[self.friendlyMergerMessagekey] = message
+                pass
 
     def change_link_status_key_internal(self, node, message_source):
+        node.memory[self.debugKey] = 'akaj ja?'
         node.memory[self.linkStatusKey][message_source] = "INTERNAL"
         node.memory[self.numberOfInternalNodesKey] += 1
     def change_link_status_key_external(self, node, message_source):
@@ -312,6 +351,9 @@ class MegaMerger(NodeAlgorithm):
 #   we need to change the orientation of roads depending on which node is the new downtown, also change internal nodes
     def friendly_merger(self, node, message, param_begining=False, orientation_of_roads=False):
         if param_begining == True:
+#            Only when node is the root
+            if node.memory[self.Let_us_merge_FriendlyMergerKey] == False:
+                node.send(Message(header='Let_us_merge', data={'Level': node.memory[self.levelKey]}, destination=message.source))
             b = message.source
             new_downtown = self.min_id_two_nodes(node, b)
             self.change_name_level(node, None, new_downtown.id, 'friendly_merger')
@@ -358,19 +400,24 @@ class MegaMerger(NodeAlgorithm):
             node.memory[self.linkStatusKey][neighbor] = "UNUSED"
 
 
-    def min_weight(self,node):
+    def min_weight(self,node, message):
         #TODO if no unused edge found, return infinitive weight TEST
         #we are considering only unused edges.
-        temp_unused_edges = dict()
+        temp_unused_external_edges = dict()
+#       trick to add just changed extrnal edge to what it should be while in this method, an unused edge
+        if message != None:
+            node.memory[self.linkStatusKey][message.source] = 'UNUSED'
         #temp_unused_edges = [(k, v) if v2='UNUSED' for (k,v), (k, v2) in zip(node.memory[self.weightKey].items(), node.memory[self.linkStatusKey].items())]
         for k,v in node.memory[self.weightKey].iteritems():
             if node.memory[self.linkStatusKey][k] == 'UNUSED':
-                temp_unused_edges[k] = v
+                temp_unused_external_edges[k] = v
+        if message != None:
+            node.memory[self.linkStatusKey][message.source] = 'EXTERNAL'
 #       TEST - solution for TODO 
-        if not temp_unused_edges:
+        if not temp_unused_external_edges:
             infinitiveEdge = {node: [maxint,maxint]}
             return infinitiveEdge
-        orderedDict = collections.OrderedDict(sorted(temp_unused_edges.iteritems(), key=lambda (k,v):v[0]))            
+        orderedDict = collections.OrderedDict(sorted(temp_unused_external_edges.iteritems(), key=lambda (k,v):v[0]))            
         min_1= orderedDict.values()[0][0]
         print(min_1)        
         uzi_izbor={}
