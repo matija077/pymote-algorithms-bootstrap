@@ -115,7 +115,9 @@ class MegaMerger(NodeAlgorithm):
     def processing(self, node, message):
         # valjda ovo rjesava donji TODO
         if message.header=='Outside?':
+            node.memory['mozdavise'] = 'usao sam'
             self.check_Outside_header(node, message)
+            self.send_Outside(node, message)
 
         #TODO add Outside? for other nodes, not just INI_NODES
         if message.header=="Let_us_merge":
@@ -240,10 +242,9 @@ class MegaMerger(NodeAlgorithm):
             node.send(Message(header='External', data=0, destination=message.source))
             self.change_link_status_key_external(node, message.source)
         else:
-            # TODO internal external suspension, this suspension is never gona be "unsuspended"
-            #   need to check some things here, it's an absorption, so things start again, it's not like
-            #   in other suspension where we wait.
-            pass
+#           if the merge egde is the one being suspended, node would always pick that edge for merge.
+            self.change_link_status_key_external(node, message.source)
+            node.memory[self.let_us_merge_queue_key].append(message)
 
 #   duplicate in send_Outside and Report case in Processing. If it's the leaf node then check if we can start sending reports back.
 #   TODO check if 2 ifs below are not redundant
@@ -273,6 +274,20 @@ class MegaMerger(NodeAlgorithm):
         else:
             prepared_data = {'Level': node.memory[self.levelKey]}
 
+#   mutiple Outside message can be possible because of multiple send_Outisde calls.
+    def check_outbox_Outside_exists(self, node):
+        if len(node.outbox) > 0:
+            node.memory['DEBUG3'] = node.outbox[0].header
+        else:
+            return False
+        #return any(message.header=="Outside?" for message in node.outbox)
+        #return (True if message.header=="Outside?" else False for message in node.outbox)
+        for message in node.outbox:
+            node.memory['listDebug'].append(message.header)
+            if message.header=='Outside?':
+                return True
+        return False
+
 #   name and level changes are in a function because they will be reused and we need to 
 #   check queue whenever level changes
 #   what_is_it: is it absorption or friendly merger?
@@ -294,7 +309,18 @@ class MegaMerger(NodeAlgorithm):
 
 #   TODO if lvl is greater then absorb th other city. Absorption calls send_Outside which calls min_weight which calls check_queue again
 #   so it will repeat itself. Also in min_weight there is a check for the same level.
+#   if header is Outside? than we just need to reply.
     def check_queue(self, node):
+#       it worked without this somehow, now it doesn't
+        if len(node.memory[self.let_us_merge_queue_key]) < 1:
+            return
+        node.memory['prvo'] = 'prvo'
+        if node.memory[self.let_us_merge_queue_key][0].header=="Outside?":
+            node.memory['dugo'] = 'drugo'
+            if node.memory[self.levelKey] >= node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
+                #self.check_Outside_header(node, node.memory[self.let_us_merge_queue_key].popleft())
+#               function check_Outside_header does some more things so i dont want t want to risk it
+                 node.send(Message(header='External', data=0, destination=node.memory[self.let_us_merge_queue_key].popleft().source))
         if node.memory[self.levelKey] > node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
             self.absorption(node, node.memory[self.let_us_merge_queue_key].popleft(), True)
 
@@ -323,6 +349,7 @@ class MegaMerger(NodeAlgorithm):
                 node.memory[self.let_us_merge_queue_key].append(message)
         else:
             node.memory['DEBUG2'] = 'other susension'
+#           ovaj se nikad ne bi trebao dogoditi
             pass
 
     def change_link_status_key_internal(self, node, message_source):
@@ -404,6 +431,7 @@ class MegaMerger(NodeAlgorithm):
         # sam sebe dodamo kao defaultni minimumEdgeNode sa max weightom.
         node.memory[self.nodeEdgeKey] = {node: [maxint, maxint]}
         node.memory[self.let_us_merge_queue_key] = collections.deque([])
+        node.memory['listDebug'] = []
         for neighbor in node.memory[self.neighborsKey]:
             node.memory[self.weightKey][neighbor] = [min(node.id, neighbor.id),
             max(node.id, neighbor.id)]
@@ -417,13 +445,27 @@ class MegaMerger(NodeAlgorithm):
 #       check queue
         if len(node.memory[self.let_us_merge_queue_key]) > 0 :
             self.check_queue(node)
+
+#       check if Outside? message already exists in inbox
+        '''if self.check_outbox_Outside_exists(node):
+            node.memory['DEBUG5'] = 'wtf'
+            return node.memory[self.nodeEdgeKey]'''
+
+        node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
         #TODO if no unused edge found, return infinitive weight TEST
         #we are considering only unused edges.
         temp_unused_external_edges = dict()
         temp_node = None
-#       trick to add just changed extrnal edge to what it should be while in this method, an unused edge
-        if message != None:
-            node.memory[self.linkStatusKey][message.source] = 'UNUSED'
+
+#       trick to add just changed extrnal edge to what it should be while in this method, an unused edge. if just added external edge is suspensed
+#       then dont include it.
+        if len(node.memory[self.let_us_merge_queue_key]) > 0:
+            if message != None and message.source.id != node.memory[self.let_us_merge_queue_key][0].source.id:
+                node.memory[self.linkStatusKey][message.source] = 'UNUSED'
+        else:
+            if message != None:
+                node.memory[self.linkStatusKey][message.source] = 'UNUSED'
+
 #       if same levels in queue then include it for me
         if len(node.memory[self.let_us_merge_queue_key]) > 1:
             if node.memory[self.levelKey] == node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
@@ -473,7 +515,7 @@ class MegaMerger(NodeAlgorithm):
         node_id_weight_b = dict(message_source.memory[self.nodeEdgeKey])
         weight_node_a = node_id_weight_a.values()
         weight_node_b = node_id_weight_b.values()
-        node.memory[self.debugKey] = [node_id_weight_a, node_id_weight_b]
+        #node.memory[self.debugKey] = [node_id_weight_a, node_id_weight_b]
 
         if weight_node_a[0]<weight_node_b[0]:
             node.memory[self.nodeEdgeKey] = node_id_weight_a
