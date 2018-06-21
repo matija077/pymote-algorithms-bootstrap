@@ -41,7 +41,7 @@ class MegaMerger(NodeAlgorithm):
         #ini_nodes.append(self.network.nodes()[4])
         ini_nodes.append(self.network.nodes()[2])
         #ini_nodes.append(self.network.nodes()[6])
-        ini_nodes.append(self.network.nodes()[5])
+        #ini_nodes.append(self.network.nodes()[5])
 
 
 
@@ -177,8 +177,9 @@ class MegaMerger(NodeAlgorithm):
                 node.send(Message(header='Report', data=0, destination=node.memory[self.parentKey]))
             else:
 #               TODO when merging egde is also downtown - WRONG, he should be sending let us merge. this is a quick fix for merge node being root.
-                node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
                 self.change_let_us_merge_FriendlyMergerKey(node, True)
+                node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
+                node.memory['DEBUG2'] = 'external root'
 
         if message.header=="Report":
             node.memory[self.reportCounterKey] += 1
@@ -213,10 +214,12 @@ class MegaMerger(NodeAlgorithm):
         # solution for infinitive is {self node: [maxint, maxint]}. we don't want node to send message to itself, we want to report it
 #       to parent as infinitive. Of course if no parent present otherwise it just sends to everyone
 #       if outside is the same edge as the one we just sent External to then we can skip this adn send Let_us_merge
+#       TODO we will not use this behaviour for now. It creates a lot of problems. Return stays otherwise node sends Outisde? with no reason.
         if message != None:
             if node.memory[self.nodeEdgeKey].keys()[0] == message.source:
-                node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
-                self.change_let_us_merge_FriendlyMergerKey(node, True)
+#               currently buggy
+                #node.send(Message(header="Let_us_merge" ,data=0, destination=message.source))
+                #self.change_let_us_merge_FriendlyMergerKey(node, True)
                 return
         if node.id != node.memory[self.nodeEdgeKey].keys()[0].id:
             node.send(Message(header='Outside?', data=0, destination=node.memory[self.nodeEdgeKey]))
@@ -316,8 +319,10 @@ class MegaMerger(NodeAlgorithm):
                     node.memory[self.friendlyMergerMessagekey] = message
 #           suspension and put in queue
             else:
+                node.memory['DEBUG2'] = 'suspension'
                 node.memory[self.let_us_merge_queue_key].append(message)
         else:
+            node.memory['DEBUG2'] = 'other susension'
             pass
 
     def change_link_status_key_internal(self, node, message_source):
