@@ -206,7 +206,12 @@ class MegaMerger(NodeAlgorithm):
 
     def send_Outside(self, node, message = None):
         #TODO everytime node receive Internal, send message again somehow TEST
-        node.memory[self.nodeEdgeKey] = self.min_weight(node, message)
+        #if multiple same edge has been choosen and already Outside message exists, then we dont have to do anything
+        test = self.min_weight(node, message)
+        if test == None:
+            return
+        else:
+            node.memory[self.nodeEdgeKey] = test
 #       if the choosen merge dge is the first one in queue pop it
         if len(node.memory[self.let_us_merge_queue_key]) > 0:
             if node.memory[self.nodeEdgeKey] == node.memory[self.let_us_merge_queue_key][0].source:
@@ -321,7 +326,7 @@ class MegaMerger(NodeAlgorithm):
                 #self.check_Outside_header(node, node.memory[self.let_us_merge_queue_key].popleft())
 #               function check_Outside_header does some more things so i dont want t want to risk it
                  node.send(Message(header='External', data=0, destination=node.memory[self.let_us_merge_queue_key].popleft().source))
-        if node.memory[self.levelKey] > node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
+        elif node.memory[self.levelKey] > node.memory[self.let_us_merge_queue_key][0].source.memory[self.levelKey]:
             self.absorption(node, node.memory[self.let_us_merge_queue_key].popleft(), True)
 
 
@@ -447,9 +452,9 @@ class MegaMerger(NodeAlgorithm):
             self.check_queue(node)
 
 #       check if Outside? message already exists in inbox
-        '''if self.check_outbox_Outside_exists(node):
+        if self.check_outbox_Outside_exists(node):
             node.memory['DEBUG5'] = 'wtf'
-            return node.memory[self.nodeEdgeKey]'''
+            return None
 
         node.memory[self.debugKey] = node.memory[self.nodeEdgeKey]
         #TODO if no unused edge found, return infinitive weight TEST
@@ -549,3 +554,6 @@ class MegaMerger(NodeAlgorithm):
               'PROCESSING': processing,
               'SATURATED': saturated,
              }
+
+#   sam sebi je merge edge
+#   s boziro mda imam omerge link absorb ne bi trebao voditi ka merge linku ako smo vec  poslali report parentu. to moramo rjesit.
